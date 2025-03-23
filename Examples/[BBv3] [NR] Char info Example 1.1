@@ -1,0 +1,54 @@
+// Store the key of the user who touched the object
+key currentUser;
+// URL for the API endpoint
+string siteUrl = "SITEURL";
+// Authentication key for API access
+string authKey = "AUTHKEY";
+// Script version number
+string version = "3.0";
+
+// Function to make HTTP requests to the API
+// Parameters:
+//   cmd: The command to send to the API
+//   data: Additional data to include in the request as a list of key-value pairs
+// Returns: key of the HTTP request
+key doRequest(string cmd, list data){
+    // Create JSON object with command parameters and authentication information
+    string json = llList2Json(JSON_OBJECT, [
+        "rawCmd", llEscapeURL(cmd),  // The command to execute, URL encoded
+        "ownerKey", llGetOwner(),    // Owner of this object
+        "unixtime", llGetUnixTime(), // Current timestamp
+        "authKey", authKey           // Authentication key
+    ] + data);
+    // Make the HTTP request to the API
+    return llHTTPRequest(siteUrl, [
+        HTTP_METHOD, "POST",                 // Using POST method
+        HTTP_BODY_MAXLENGTH, 16384,          // Maximum response size
+        HTTP_MIMETYPE, "application/x-www-form-urlencoded", // Content type
+        HTTP_VERBOSE_THROTTLE, FALSE         // Disable verbose throttling
+    ], "lslData=" + json);
+}
+
+
+default
+{
+    // Event handler for when the object is touched
+    touch_start(integer total_number)
+    {
+        // Get the key of the avatar who touched the object
+        currentUser = llDetectedKey(0);
+        // Request active character data for the user who touched the object
+        doRequest("Data ActiveChar", ["uuidSource", (string)currentUser]);
+    }
+    
+    // Event handler for HTTP responses
+    http_response(key request_id, integer status, list metadata, string body)
+    {
+        // Debug: Output the full response to local chat
+        llSay(0, body);
+        // Check if the request was successful
+        if(status != 200) return;      
+        // Extract the character name from the response and tell it to the user
+        llRegionSayTo(currentUser, 0, llJsonGetValue(body, ["name"]));
+    }
+}
